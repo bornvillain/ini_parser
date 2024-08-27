@@ -31,7 +31,7 @@ std::string ini_parser::GetSectionName(const std::string &line) {
     return result;
 }
 
-ini_parser::KeyValueType ini_parser::GetKeyValue(const std::string &line) {
+std::pair<std::string, std::string> ini_parser::GetKeyValue(const std::string &line) {
     size_t equal_pos = line.find('=');
     std::string left = line.substr(0, equal_pos);
     std::string right = line.substr(equal_pos + 1);
@@ -41,13 +41,7 @@ ini_parser::KeyValueType ini_parser::GetKeyValue(const std::string &line) {
     right.erase(0, right.find_first_not_of(' '));
     right.erase(right.find_last_not_of(' ') + 1);
 
-    try {
-        double value = std::stod(right);
-        return {left, value};
-    }
-    catch (const std::invalid_argument &) {
-        return {left, right};
-    }
+    return {left, right};
 }
 
 void ini_parser::parse_file() {
@@ -82,4 +76,52 @@ void ini_parser::parse_file() {
                     "incorrect file format: syntax error on line " + std::to_string(line_number));
         }
     }
+}
+
+std::string ini_parser::get_string_value(const std::string &section, const std::string &value) const {
+    if (sections_.find(section) == sections_.end()) {
+        throw std::out_of_range("section " + section + " not found");
+    }
+
+    if (sections_.at(section).find(value) == sections_.at(section).end()) {
+        std::string available_values;
+        bool is_first = true;
+        if (sections_.at(section).empty()) {
+            available_values = "no values available in this section";
+        } else {
+            for (const auto &[key, _]: sections_.at(section)) {
+                if (is_first) {
+                    available_values += key;
+                    is_first = false;
+                } else {
+                    available_values += ", " + key;
+                }
+            }
+        }
+        throw std::out_of_range(
+                "element in section " + section + " with value " + value + " not found, available values: " +
+                available_values);
+    }
+
+    return sections_.at(section).at(value);
+}
+
+template<>
+std::string ini_parser::get_value<std::string>(const std::string &section, const std::string &value) const {
+    return get_string_value(section, value);
+}
+
+template<>
+int ini_parser::get_value<int>(const std::string &section, const std::string &value) const {
+    return std::stoi(get_string_value(section, value));
+}
+
+template<>
+float ini_parser::get_value<float>(const std::string &section, const std::string &value) const {
+    return std::stof(get_string_value(section, value));
+}
+
+template<>
+double ini_parser::get_value<double>(const std::string &section, const std::string &value) const {
+    return std::stod(get_string_value(section, value));
 }
